@@ -86,9 +86,25 @@ where
 
     fn handle_ihave(&mut self, m: IhaveMessage<N, M>) {}
 
-    fn handle_graft(&mut self, m: GraftMessage<N, M>) {}
+    fn handle_graft(&mut self, m: GraftMessage<N, M>) {
+        self.eager_push_peers.insert(m.sender.clone());
+        self.lazy_push_peers.remove(&m.sender);
+        if self.received_msgs.contains(&m.message_id) {
+            self.action_queue.send(
+                m.sender,
+                GossipMessage {
+                    sender: self.node_id.clone(),
+                    message_id: m.message_id,
+                    round: m.round,
+                },
+            );
+        }
+    }
 
-    fn handle_prune(&mut self, m: PruneMessage<N>) {}
+    fn handle_prune(&mut self, m: PruneMessage<N>) {
+        self.eager_push_peers.remove(&m.sender);
+        self.lazy_push_peers.insert(m.sender);
+    }
 
     fn eager_push(&mut self, mut m: GossipMessage<N, M>) {
         let sender = m.sender;
