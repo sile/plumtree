@@ -1,24 +1,26 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use message::Message;
+
 #[derive(Debug)]
-pub struct Node<T, M>
+pub struct Node<N, M>
 where
-    T: Hash + Eq,
+    N: Hash + Eq,
     M: Hash + Eq,
 {
-    id: T,
-    eager_push_peers: HashSet<T>,
-    lazy_push_peers: HashSet<T>,
+    id: N,
+    eager_push_peers: HashSet<N>,
+    lazy_push_peers: HashSet<N>,
     missing: HashSet<M>,
     received_msgs: HashSet<M>,
 }
-impl<T, M> Node<T, M>
+impl<N, M> Node<N, M>
 where
-    T: Hash + Eq,
+    N: Hash + Eq,
     M: Hash + Eq,
 {
-    pub fn new(node_id: T) -> Self {
+    pub fn new(node_id: N) -> Self {
         Node {
             id: node_id,
             eager_push_peers: HashSet::new(),
@@ -28,8 +30,9 @@ where
         }
     }
 
-    // pub fn handle_gossip(&mut self, msg_id: M, round: u8,
-    pub fn handle_neighbour_up(&mut self, neighbour_node_id: T) {}
+    pub fn handle_message(&mut self, message: Message<N, M>) {}
 
-    pub fn handle_neighbour_down(&mut self, neighbour_node_id: T) {}
+    pub fn handle_neighbour_up(&mut self, neighbour_node_id: N) {}
+
+    pub fn handle_neighbour_down(&mut self, neighbour_node_id: N) {}
 }

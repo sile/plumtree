@@ -1,5 +1,6 @@
 extern crate hyparview;
 
+pub mod message;
 pub mod node;
 
 #[cfg(test)]
