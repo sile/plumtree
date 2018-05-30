@@ -54,7 +54,7 @@ pub struct IhaveMessage<N, M> {
 #[derive(Debug, Clone)]
 pub struct GraftMessage<N, M> {
     pub sender: N,
-    pub message_id: M,
+    pub message_id: Option<M>,
     pub round: u16,
 }
 
