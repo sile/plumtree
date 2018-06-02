@@ -36,6 +36,8 @@ where
         }
     }
 
+    // TODO: pub fn broadcast();
+
     pub fn handle_message(&mut self, message: Message<N, M>) {
         if !self.is_known_node(message.sender()) {
             return;
@@ -49,6 +51,10 @@ where
     }
 
     pub fn handle_neighbour_up(&mut self, neighbour_node_id: N) {
+        if self.is_known_node(&neighbour_node_id) {
+            // may be bug of peer-sampling-service
+            return;
+        }
         if self.node_id == neighbour_node_id {
             // TODO: metrics
             return;
@@ -57,6 +63,10 @@ where
     }
 
     pub fn handle_neighbour_down(&mut self, neighbour_node_id: N) {
+        if !self.is_known_node(&neighbour_node_id) {
+            // may be bug of peer-sampling-service
+            return;
+        }
         self.eager_push_peers.remove(&neighbour_node_id);
         self.lazy_push_peers.remove(&neighbour_node_id);
     }

@@ -41,6 +41,7 @@ pub struct GossipMessage<N, M> {
     pub sender: N,
     pub message_id: M,
     pub round: u16,
+    // TODO: payload
 }
 
 // It is allowed to delay sending this message arbitrary time within ...
