@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::hash::Hash;
 
 use action::{Action, ActionQueue};
@@ -58,7 +59,6 @@ where
     pub fn handle_neighbour_down(&mut self, neighbour_node_id: N) {
         self.eager_push_peers.remove(&neighbour_node_id);
         self.lazy_push_peers.remove(&neighbour_node_id);
-        self.missing.handle_node_down(&neighbour_node_id);
     }
 
     pub fn forget_message(&mut self, message_id: &M) {
@@ -69,6 +69,7 @@ where
         self.clock += 1;
         while let Some(ihave) = self.missing.pop_expired(self.clock) {
             if !self.is_known_node(&ihave.sender) {
+                // The node has been removed from neighbours
                 continue;
             }
             self.eager_push_peers.insert(ihave.sender.clone());
@@ -111,7 +112,8 @@ where
         if self.received_msgs.contains(&m.message_id) {
             return;
         }
-        self.missing.push(m); // TODO: increase timeout if already exists
+        let expiry_time = self.clock + 3; // TODO: parameter
+        self.missing.push(m, expiry_time);
     }
 
     fn handle_graft(&mut self, mut m: GraftMessage<N, M>) {
@@ -158,19 +160,19 @@ where
     }
 
     fn optimize(&mut self, m: GossipMessage<N, M>) {
-        if let Some(ihave) = self.missing.get_by_id(&m.message_id) {
+        if let Some((round, node)) = self.missing.get_by_id(&m.message_id) {
             let threshold = 3; // TODO
-            if ihave.round < m.round && (m.round - ihave.round) >= threshold {
+            if round < m.round && (m.round - round) >= threshold {
                 self.action_queue.send(
-                    ihave.sender.clone(),
+                    node.clone(),
                     GraftMessage {
                         sender: self.node_id.clone(),
                         message_id: None,
-                        round: ihave.round,
+                        round,
                     },
                 );
                 self.action_queue
-                    .send(m.sender, PruneMessage::new(&self.node_id));
+                    .send(node.clone(), PruneMessage::new(&self.node_id));
             }
         }
     }
@@ -181,32 +183,94 @@ where
 }
 
 #[derive(Debug)]
-struct MissingMessages<N, M>(::std::marker::PhantomData<(N, M)>);
-impl<N, M> MissingMessages<N, M> {
+struct MissingMessages<N, M>
+where
+    M: Hash + Eq,
+{
+    ihaves: BinaryHeap<MissingMessage<N, M>>,
+    missings: HashMap<M, (u64, u16, N, usize)>,
+}
+impl<N, M> MissingMessages<N, M>
+where
+    N: Clone,
+    M: Hash + Eq + Clone,
+{
     fn new() -> Self {
-        MissingMessages(::std::marker::PhantomData)
+        MissingMessages {
+            ihaves: BinaryHeap::new(),
+            missings: HashMap::new(),
+        }
     }
 
-    fn push(&mut self, m: IhaveMessage<N, M>) {}
+    fn push(&mut self, m: IhaveMessage<N, M>, mut expired_at: u64) {
+        if !self.missings.contains_key(&m.message_id) {
+            self.missings.insert(
+                m.message_id.clone(),
+                (expired_at, m.round, m.sender.clone(), 1),
+            );
+        } else {
+            let entry = self.missings.get_mut(&m.message_id).expect("Never fails");
+            if expired_at <= entry.0 {
+                expired_at = entry.0 + 1;
+            }
+            entry.0 = expired_at;
+            if entry.1 > m.round {
+                entry.1 = m.round;
+                entry.2 = m.sender.clone();
+            }
+            entry.3 += 1;
+        }
+        self.ihaves.push(MissingMessage {
+            expired_at,
+            message: m,
+        });
+    }
 
     fn pop_expired(&mut self, now: u64) -> Option<IhaveMessage<N, M>> {
-        panic!()
+        while self.ihaves.peek().map_or(false, |m| m.expired_at <= now) {
+            let m = self.ihaves.pop().expect("Never fails");
+            let delete = if let Some(e) = self.missings.get_mut(&m.message.message_id) {
+                e.3 -= 1;
+                e.3 == 0
+            } else {
+                // Already cancelled
+                continue;
+            };
+            if delete {
+                self.missings.remove(&m.message.message_id);
+            }
+            return Some(m.message);
+        }
+        None
     }
 
-    fn cancel_timer(&mut self, _message_id: &M) {}
-
-    fn handle_node_down(&mut self, _node_id: &N) {}
-
-    fn is_empty(&self) -> bool {
-        panic!()
+    fn cancel_timer(&mut self, message_id: &M) {
+        self.missings.remove(message_id);
     }
 
-    fn contains(&self, _message_id: &M) -> bool {
-        panic!()
+    fn get_by_id(&self, message_id: &M) -> Option<(u16, &N)> {
+        self.missings.get(message_id).map(|e| (e.1, &e.2))
     }
+}
 
-    fn get_by_id(&self, _message_id: &M) -> Option<&IhaveMessage<N, M>> {
-        // NOTE: returns minimum round node
-        panic!()
+#[derive(Debug)]
+struct MissingMessage<N, M> {
+    expired_at: u64,
+    message: IhaveMessage<N, M>,
+}
+impl<N, M> PartialEq for MissingMessage<N, M> {
+    fn eq(&self, other: &Self) -> bool {
+        self.expired_at == other.expired_at
+    }
+}
+impl<N, M> Eq for MissingMessage<N, M> {}
+impl<N, M> PartialOrd for MissingMessage<N, M> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        other.expired_at.partial_cmp(&self.expired_at)
+    }
+}
+impl<N, M> Ord for MissingMessage<N, M> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.expired_at.cmp(&self.expired_at)
     }
 }
