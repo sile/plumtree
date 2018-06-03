@@ -198,6 +198,7 @@ impl<T: System> Node<T> {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(map_entry))]
     fn handle_gossip(&mut self, gossip: GossipMessage<T>) {
         if self.messages.contains_key(&gossip.message.id) {
             self.eager_push_peers.remove(&gossip.sender);
@@ -223,7 +224,7 @@ impl<T: System> Node<T> {
             return;
         }
 
-        let mut expiry_time = self.clock.clone();
+        let mut expiry_time = self.clock;
         if !ihave.realtime {
             expiry_time.0 += self.options.ihave_timeout;
         };
