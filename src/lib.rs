@@ -1,11 +1,13 @@
 extern crate hyparview;
 
 pub use action::Action;
+pub use message::Message;
 pub use node::Node;
 pub use system::System;
 
-pub mod message;
+pub mod ipc;
 
 mod action;
+mod message;
 mod node;
 mod system;

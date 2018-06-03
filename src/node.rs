@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
 use action::{Action, ActionQueue};
-use message::{GossipMessage, GraftMessage, IhaveMessage, Message, PruneMessage};
+use ipc::{GossipMessage, GraftMessage, IhaveMessage, IpcMessage, PruneMessage};
 use System;
 
 // #[derive(Debug)]
@@ -30,15 +30,15 @@ impl<T: System> Node<T> {
 
     // TODO: pub fn broadcast();
 
-    pub fn handle_message(&mut self, message: Message<T>) {
+    pub fn handle_message(&mut self, message: IpcMessage<T>) {
         if !self.is_known_node(message.sender()) {
             return;
         }
         match message {
-            Message::Gossip(m) => self.handle_gossip(m),
-            Message::Ihave(m) => self.handle_ihave(m),
-            Message::Graft(m) => self.handle_graft(m),
-            Message::Prune(m) => self.handle_prune(m),
+            IpcMessage::Gossip(m) => self.handle_gossip(m),
+            IpcMessage::Ihave(m) => self.handle_ihave(m),
+            IpcMessage::Graft(m) => self.handle_graft(m),
+            IpcMessage::Prune(m) => self.handle_prune(m),
         }
     }
 
@@ -92,15 +92,15 @@ impl<T: System> Node<T> {
     }
 
     fn handle_gossip(&mut self, m: GossipMessage<T>) {
-        if self.received_msgs.contains(&m.message_id) {
+        if self.received_msgs.contains(&m.message.id) {
             self.eager_push_peers.remove(&m.sender);
             self.lazy_push_peers.insert(m.sender.clone());
             self.action_queue
                 .send(m.sender, PruneMessage::new(&self.node_id));
         } else {
             self.action_queue.deliver(&m);
-            self.received_msgs.insert(m.message_id.clone());
-            self.missing.cancel_timer(&m.message_id);
+            self.received_msgs.insert(m.message.id.clone());
+            self.missing.cancel_timer(&m.message.id);
 
             self.eager_push(m.clone());
             self.lazy_push(m.clone());
@@ -127,8 +127,7 @@ impl<T: System> Node<T> {
                     m.sender,
                     GossipMessage {
                         sender: self.node_id.clone(),
-                        message_id,
-                        message_payload: unsafe { ::std::mem::uninitialized() }, // TODO
+                        message: unsafe { ::std::mem::uninitialized() }, // TODO
                         round: m.round,
                     },
                 );
@@ -154,7 +153,7 @@ impl<T: System> Node<T> {
         let sender = m.sender;
         let m = IhaveMessage {
             sender: self.node_id.clone(),
-            message_id: m.message_id,
+            message_id: m.message.id,
             round: m.round.saturating_add(1),
         };
         for p in self.eager_push_peers.iter().filter(|n| **n != sender) {
@@ -163,7 +162,7 @@ impl<T: System> Node<T> {
     }
 
     fn optimize(&mut self, m: GossipMessage<T>) {
-        if let Some((round, node)) = self.missing.get_by_id(&m.message_id) {
+        if let Some((round, node)) = self.missing.get_by_id(&m.message.id) {
             let threshold = 3; // TODO
             if round < m.round && (m.round - round) >= threshold {
                 self.action_queue.send(

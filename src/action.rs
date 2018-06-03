@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::fmt;
 
-use message::{GossipMessage, Message};
-use System;
+use ipc::{GossipMessage, IpcMessage};
+use {Message, System};
 
 /// Actions instructed by Plumtree [Node].
 ///
@@ -19,22 +19,19 @@ pub enum Action<T: System> {
         destination: T::NodeId,
 
         /// The outgoing message.
-        message: Message<T>,
+        message: IpcMessage<T>,
     },
 
     /// Deliver a message to the applications waiting for messages.
     Deliver {
-        /// The identifier of the message.
-        message_id: T::MessageId,
-
-        /// The payload of the message.
-        message_payload: T::MessagePayload,
+        /// The message to be delivered.
+        message: Message<T>,
     },
 }
 impl<T: System> Action<T> {
     pub(crate) fn send<M>(destination: T::NodeId, message: M) -> Self
     where
-        M: Into<Message<T>>,
+        M: Into<IpcMessage<T>>,
     {
         Action::Send {
             destination,
@@ -58,14 +55,7 @@ where
                 "Send {{ destination: {:?}, message: {:?} }}",
                 destination, message
             ),
-            Action::Deliver {
-                message_id,
-                message_payload,
-            } => write!(
-                f,
-                "Deliver {{ message_id: {:?}, message_payload: {:?} }}",
-                message_id, message_payload
-            ),
+            Action::Deliver { message } => write!(f, "Deliver {{ message: {:?} }}", message),
         }
     }
 }
@@ -76,14 +66,13 @@ impl<T: System> ActionQueue<T> {
         ActionQueue(VecDeque::new())
     }
 
-    pub fn send<M: Into<Message<T>>>(&mut self, destination: T::NodeId, message: M) {
+    pub fn send<M: Into<IpcMessage<T>>>(&mut self, destination: T::NodeId, message: M) {
         self.0.push_back(Action::send(destination, message));
     }
 
     pub fn deliver(&mut self, gossip: &GossipMessage<T>) {
         self.0.push_back(Action::Deliver {
-            message_id: gossip.message_id.clone(),
-            message_payload: gossip.message_payload.clone(),
+            message: gossip.message.clone(),
         });
     }
 
