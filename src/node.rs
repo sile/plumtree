@@ -128,6 +128,7 @@ impl<T: System> Node<T> {
                     GossipMessage {
                         sender: self.node_id.clone(),
                         message_id,
+                        message_payload: unsafe { ::std::mem::uninitialized() }, // TODO
                         round: m.round,
                     },
                 );
