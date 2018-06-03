@@ -98,7 +98,7 @@ impl<T: System> Node<T> {
             self.action_queue
                 .send(m.sender, PruneMessage::new(&self.node_id));
         } else {
-            self.action_queue.deliver(m.message_id.clone());
+            self.action_queue.deliver(&m);
             self.received_msgs.insert(m.message_id.clone());
             self.missing.cancel_timer(&m.message_id);
 

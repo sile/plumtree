@@ -1,36 +1,34 @@
 use std::collections::VecDeque;
+use std::fmt;
 
-use message::Message;
+use message::{GossipMessage, Message};
 use System;
 
-// #[derive(Debug)]
-pub struct ActionQueue<T: System>(VecDeque<Action<T>>);
-impl<T: System> ActionQueue<T> {
-    pub fn new() -> Self {
-        ActionQueue(VecDeque::new())
-    }
-
-    pub fn send<M: Into<Message<T>>>(&mut self, destination: T::NodeId, message: M) {
-        self.0.push_back(Action::send(destination, message));
-    }
-
-    pub fn deliver(&mut self, message_id: T::MessageId) {
-        self.0.push_back(Action::Deliver { message_id });
-    }
-
-    pub fn pop(&mut self) -> Option<Action<T>> {
-        self.0.pop_back()
-    }
-}
-
-// #[derive(Debug)]
+/// Actions instructed by Plumtree [Node].
+///
+/// For running Plumtree nodes, the actions must be handled correctly by upper layers.
+///
+/// [Node]: ./struct.Node.html
 pub enum Action<T: System> {
+    /// Send a message.
+    ///
+    /// If it is failed to send the message (e.g., the destination node does not exist),
+    /// the message will be discarded silently.
     Send {
+        /// The destination of the message.
         destination: T::NodeId,
+
+        /// The outgoing message.
         message: Message<T>,
     },
+
+    /// Deliver a message to the applications waiting for messages.
     Deliver {
+        /// The identifier of the message.
         message_id: T::MessageId,
+
+        /// The payload of the message.
+        message_payload: T::MessagePayload,
     },
 }
 impl<T: System> Action<T> {
@@ -42,5 +40,64 @@ impl<T: System> Action<T> {
             destination,
             message: message.into(),
         }
+    }
+}
+impl<T: System> fmt::Debug for Action<T>
+where
+    T::NodeId: fmt::Debug,
+    T::MessageId: fmt::Debug,
+    T::MessagePayload: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Action::Send {
+                destination,
+                message,
+            } => write!(
+                f,
+                "Send {{ destination: {:?}, message: {:?} }}",
+                destination, message
+            ),
+            Action::Deliver {
+                message_id,
+                message_payload,
+            } => write!(
+                f,
+                "Deliver {{ message_id: {:?}, message_payload: {:?} }}",
+                message_id, message_payload
+            ),
+        }
+    }
+}
+
+pub struct ActionQueue<T: System>(VecDeque<Action<T>>);
+impl<T: System> ActionQueue<T> {
+    pub fn new() -> Self {
+        ActionQueue(VecDeque::new())
+    }
+
+    pub fn send<M: Into<Message<T>>>(&mut self, destination: T::NodeId, message: M) {
+        self.0.push_back(Action::send(destination, message));
+    }
+
+    pub fn deliver(&mut self, gossip: &GossipMessage<T>) {
+        self.0.push_back(Action::Deliver {
+            message_id: gossip.message_id.clone(),
+            message_payload: gossip.message_payload.clone(),
+        });
+    }
+
+    pub fn pop(&mut self) -> Option<Action<T>> {
+        self.0.pop_back()
+    }
+}
+impl<T: System> fmt::Debug for ActionQueue<T>
+where
+    T::NodeId: fmt::Debug,
+    T::MessageId: fmt::Debug,
+    T::MessagePayload: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ActionQueue({:?})", self.0)
     }
 }
