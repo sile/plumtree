@@ -79,6 +79,15 @@ pub struct GossipMessage<T: System> {
     /// The hop count of the message.
     pub round: u16,
 }
+impl<T: System> GossipMessage<T> {
+    pub(crate) fn new(sender: &T::NodeId, message: Message<T>, round: u16) -> Self {
+        GossipMessage {
+            sender: sender.clone(),
+            message,
+            round,
+        }
+    }
+}
 impl<T: System> Clone for GossipMessage<T> {
     fn clone(&self) -> Self {
         GossipMessage {
@@ -113,6 +122,26 @@ pub struct IhaveMessage<T: System> {
 
     /// The hop count of the message.
     pub round: u16,
+
+    /// Indicates whether this is a real-time message or a buffered message.
+    ///
+    /// The latter is used for synchronizing messages when new neighbors are joined.
+    pub realtime: bool,
+}
+impl<T: System> IhaveMessage<T> {
+    pub(crate) fn new(
+        sender: &T::NodeId,
+        message_id: T::MessageId,
+        round: u16,
+        realtime: bool,
+    ) -> Self {
+        IhaveMessage {
+            sender: sender.clone(),
+            message_id,
+            round,
+            realtime,
+        }
+    }
 }
 impl<T: System> Clone for IhaveMessage<T> {
     fn clone(&self) -> Self {
@@ -120,6 +149,7 @@ impl<T: System> Clone for IhaveMessage<T> {
             sender: self.sender.clone(),
             message_id: self.message_id.clone(),
             round: self.round,
+            realtime: self.realtime,
         }
     }
 }
@@ -131,8 +161,8 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "IhaveMessage {{ sender: {:?}, message_id: {:?}, round: {:?} }}",
-            self.sender, self.message_id, self.round
+            "IhaveMessage {{ sender: {:?}, message_id: {:?}, round: {:?}, realtime: {:?} }}",
+            self.sender, self.message_id, self.round, self.realtime
         )
     }
 }
@@ -147,6 +177,15 @@ pub struct GraftMessage<T: System> {
 
     /// The hop count of the message.
     pub round: u16,
+}
+impl<T: System> GraftMessage<T> {
+    pub(crate) fn new(sender: &T::NodeId, message_id: Option<T::MessageId>, round: u16) -> Self {
+        GraftMessage {
+            sender: sender.clone(),
+            message_id,
+            round,
+        }
+    }
 }
 impl<T: System> Clone for GraftMessage<T> {
     fn clone(&self) -> Self {

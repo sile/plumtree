@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt;
 
-use ipc::{GossipMessage, IpcMessage};
+use ipc::IpcMessage;
 use {Message, System};
 
 /// Actions instructed by Plumtree [Node].
@@ -70,10 +70,8 @@ impl<T: System> ActionQueue<T> {
         self.0.push_back(Action::send(destination, message));
     }
 
-    pub fn deliver(&mut self, gossip: &GossipMessage<T>) {
-        self.0.push_back(Action::Deliver {
-            message: gossip.message.clone(),
-        });
+    pub fn deliver(&mut self, message: Message<T>) {
+        self.0.push_back(Action::Deliver { message });
     }
 
     pub fn pop(&mut self) -> Option<Action<T>> {
