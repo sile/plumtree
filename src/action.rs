@@ -1,41 +1,42 @@
 use std::collections::VecDeque;
 
 use message::Message;
+use System;
 
-#[derive(Debug)]
-pub struct ActionQueue<N, M>(VecDeque<Action<N, M>>);
-impl<N, M> ActionQueue<N, M> {
+// #[derive(Debug)]
+pub struct ActionQueue<T: System>(VecDeque<Action<T>>);
+impl<T: System> ActionQueue<T> {
     pub fn new() -> Self {
         ActionQueue(VecDeque::new())
     }
 
-    pub fn send<T: Into<Message<N, M>>>(&mut self, destination: N, message: T) {
+    pub fn send<M: Into<Message<T>>>(&mut self, destination: T::NodeId, message: M) {
         self.0.push_back(Action::send(destination, message));
     }
 
-    pub fn deliver(&mut self, message_id: M) {
+    pub fn deliver(&mut self, message_id: T::MessageId) {
         self.0.push_back(Action::Deliver { message_id });
     }
 
-    pub fn pop(&mut self) -> Option<Action<N, M>> {
+    pub fn pop(&mut self) -> Option<Action<T>> {
         self.0.pop_back()
     }
 }
 
-#[derive(Debug)]
-pub enum Action<N, M> {
+// #[derive(Debug)]
+pub enum Action<T: System> {
     Send {
-        destination: N,
-        message: Message<N, M>,
+        destination: T::NodeId,
+        message: Message<T>,
     },
     Deliver {
-        message_id: M,
+        message_id: T::MessageId,
     },
 }
-impl<N, M> Action<N, M> {
-    pub(crate) fn send<T>(destination: N, message: T) -> Self
+impl<T: System> Action<T> {
+    pub(crate) fn send<M>(destination: T::NodeId, message: M) -> Self
     where
-        T: Into<Message<N, M>>,
+        M: Into<Message<T>>,
     {
         Action::Send {
             destination,

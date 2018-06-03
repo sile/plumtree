@@ -1,12 +1,14 @@
-#[derive(Debug, Clone)]
-pub enum Message<N, M> {
-    Gossip(GossipMessage<N, M>),
-    Ihave(IhaveMessage<N, M>),
-    Graft(GraftMessage<N, M>),
-    Prune(PruneMessage<N>),
+use System;
+
+#[derive(Clone)]
+pub enum Message<T: System> {
+    Gossip(GossipMessage<T>),
+    Ihave(IhaveMessage<T>),
+    Graft(GraftMessage<T>),
+    Prune(PruneMessage<T>),
 }
-impl<N, M> Message<N, M> {
-    pub fn sender(&self) -> &N {
+impl<T: System> Message<T> {
+    pub fn sender(&self) -> &T::NodeId {
         match self {
             Message::Gossip(m) => &m.sender,
             Message::Ihave(m) => &m.sender,
@@ -15,56 +17,72 @@ impl<N, M> Message<N, M> {
         }
     }
 }
-impl<N, M> From<GossipMessage<N, M>> for Message<N, M> {
-    fn from(f: GossipMessage<N, M>) -> Self {
+impl<T: System> From<GossipMessage<T>> for Message<T> {
+    fn from(f: GossipMessage<T>) -> Self {
         Message::Gossip(f)
     }
 }
-impl<N, M> From<IhaveMessage<N, M>> for Message<N, M> {
-    fn from(f: IhaveMessage<N, M>) -> Self {
+impl<T: System> From<IhaveMessage<T>> for Message<T> {
+    fn from(f: IhaveMessage<T>) -> Self {
         Message::Ihave(f)
     }
 }
-impl<N, M> From<GraftMessage<N, M>> for Message<N, M> {
-    fn from(f: GraftMessage<N, M>) -> Self {
+impl<T: System> From<GraftMessage<T>> for Message<T> {
+    fn from(f: GraftMessage<T>) -> Self {
         Message::Graft(f)
     }
 }
-impl<N, M> From<PruneMessage<N>> for Message<N, M> {
-    fn from(f: PruneMessage<N>) -> Self {
+impl<T: System> From<PruneMessage<T>> for Message<T> {
+    fn from(f: PruneMessage<T>) -> Self {
         Message::Prune(f)
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct GossipMessage<N, M> {
-    pub sender: N,
-    pub message_id: M,
+pub struct GossipMessage<T: System> {
+    pub sender: T::NodeId,
+    pub message_id: T::MessageId,
     pub round: u16,
     // TODO: payload
 }
+impl<T: System> Clone for GossipMessage<T> {
+    fn clone(&self) -> Self {
+        GossipMessage {
+            sender: self.sender.clone(),
+            message_id: self.message_id.clone(),
+            round: self.round,
+        }
+    }
+}
 
 // It is allowed to delay sending this message arbitrary time within ...
-#[derive(Debug, Clone)]
-pub struct IhaveMessage<N, M> {
-    pub sender: N,
-    pub message_id: M,
+pub struct IhaveMessage<T: System> {
+    pub sender: T::NodeId,
+    pub message_id: T::MessageId,
+    pub round: u16,
+}
+impl<T: System> Clone for IhaveMessage<T> {
+    fn clone(&self) -> Self {
+        IhaveMessage {
+            sender: self.sender.clone(),
+            message_id: self.message_id.clone(),
+            round: self.round,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GraftMessage<T: System> {
+    pub sender: T::NodeId,
+    pub message_id: Option<T::MessageId>,
     pub round: u16,
 }
 
-#[derive(Debug, Clone)]
-pub struct GraftMessage<N, M> {
-    pub sender: N,
-    pub message_id: Option<M>,
-    pub round: u16,
+#[derive(Clone)]
+pub struct PruneMessage<T: System> {
+    pub sender: T::NodeId,
 }
-
-#[derive(Debug, Clone)]
-pub struct PruneMessage<N> {
-    pub sender: N,
-}
-impl<N: Clone> PruneMessage<N> {
-    pub(crate) fn new(sender: &N) -> Self {
+impl<T: System> PruneMessage<T> {
+    pub(crate) fn new(sender: &T::NodeId) -> Self {
         PruneMessage {
             sender: sender.clone(),
         }

@@ -1,30 +1,22 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::hash::Hash;
 
 use action::{Action, ActionQueue};
 use message::{GossipMessage, GraftMessage, IhaveMessage, Message, PruneMessage};
+use System;
 
-#[derive(Debug)]
-pub struct Node<N, M>
-where
-    N: Hash + Eq,
-    M: Hash + Eq,
-{
-    node_id: N,
-    eager_push_peers: HashSet<N>, // TODO: Vec?
-    lazy_push_peers: HashSet<N>,
-    missing: MissingMessages<N, M>,
-    received_msgs: HashSet<M>,
-    action_queue: ActionQueue<N, M>,
+// #[derive(Debug)]
+pub struct Node<T: System> {
+    node_id: T::NodeId,
+    eager_push_peers: HashSet<T::NodeId>,
+    lazy_push_peers: HashSet<T::NodeId>,
+    missing: MissingMessages<T>,
+    received_msgs: HashSet<T::MessageId>,
+    action_queue: ActionQueue<T>,
     clock: u64,
 }
-impl<N, M> Node<N, M>
-where
-    N: Hash + Eq + Clone,
-    M: Hash + Eq + Clone,
-{
-    pub fn new(node_id: N) -> Self {
+impl<T: System> Node<T> {
+    pub fn new(node_id: T::NodeId) -> Self {
         Node {
             node_id,
             eager_push_peers: HashSet::new(),
@@ -38,7 +30,7 @@ where
 
     // TODO: pub fn broadcast();
 
-    pub fn handle_message(&mut self, message: Message<N, M>) {
+    pub fn handle_message(&mut self, message: Message<T>) {
         if !self.is_known_node(message.sender()) {
             return;
         }
@@ -50,7 +42,7 @@ where
         }
     }
 
-    pub fn handle_neighbour_up(&mut self, neighbour_node_id: N) {
+    pub fn handle_neighbour_up(&mut self, neighbour_node_id: T::NodeId) {
         if self.is_known_node(&neighbour_node_id) {
             // may be bug of peer-sampling-service
             return;
@@ -62,16 +54,16 @@ where
         self.eager_push_peers.insert(neighbour_node_id);
     }
 
-    pub fn handle_neighbour_down(&mut self, neighbour_node_id: N) {
-        if !self.is_known_node(&neighbour_node_id) {
+    pub fn handle_neighbour_down(&mut self, neighbour_node_id: &T::NodeId) {
+        if !self.is_known_node(neighbour_node_id) {
             // may be bug of peer-sampling-service
             return;
         }
-        self.eager_push_peers.remove(&neighbour_node_id);
-        self.lazy_push_peers.remove(&neighbour_node_id);
+        self.eager_push_peers.remove(neighbour_node_id);
+        self.lazy_push_peers.remove(neighbour_node_id);
     }
 
-    pub fn forget_message(&mut self, message_id: &M) {
+    pub fn forget_message(&mut self, message_id: &T::MessageId) {
         self.received_msgs.remove(message_id);
     }
 
@@ -95,11 +87,11 @@ where
         }
     }
 
-    pub fn poll_action(&mut self) -> Option<Action<N, M>> {
+    pub fn poll_action(&mut self) -> Option<Action<T>> {
         self.action_queue.pop()
     }
 
-    fn handle_gossip(&mut self, m: GossipMessage<N, M>) {
+    fn handle_gossip(&mut self, m: GossipMessage<T>) {
         if self.received_msgs.contains(&m.message_id) {
             self.eager_push_peers.remove(&m.sender);
             self.lazy_push_peers.insert(m.sender.clone());
@@ -118,7 +110,7 @@ where
         }
     }
 
-    fn handle_ihave(&mut self, m: IhaveMessage<N, M>) {
+    fn handle_ihave(&mut self, m: IhaveMessage<T>) {
         if self.received_msgs.contains(&m.message_id) {
             return;
         }
@@ -126,7 +118,7 @@ where
         self.missing.push(m, expiry_time);
     }
 
-    fn handle_graft(&mut self, mut m: GraftMessage<N, M>) {
+    fn handle_graft(&mut self, mut m: GraftMessage<T>) {
         self.eager_push_peers.insert(m.sender.clone());
         self.lazy_push_peers.remove(&m.sender);
         if let Some(message_id) = m.message_id.take() {
@@ -143,12 +135,12 @@ where
         }
     }
 
-    fn handle_prune(&mut self, m: PruneMessage<N>) {
+    fn handle_prune(&mut self, m: PruneMessage<T>) {
         self.eager_push_peers.remove(&m.sender);
         self.lazy_push_peers.insert(m.sender);
     }
 
-    fn eager_push(&mut self, mut m: GossipMessage<N, M>) {
+    fn eager_push(&mut self, mut m: GossipMessage<T>) {
         let sender = m.sender;
         m.sender = self.node_id.clone();
         m.round = m.round.saturating_add(1);
@@ -157,7 +149,7 @@ where
         }
     }
 
-    fn lazy_push(&mut self, m: GossipMessage<N, M>) {
+    fn lazy_push(&mut self, m: GossipMessage<T>) {
         let sender = m.sender;
         let m = IhaveMessage {
             sender: self.node_id.clone(),
@@ -169,7 +161,7 @@ where
         }
     }
 
-    fn optimize(&mut self, m: GossipMessage<N, M>) {
+    fn optimize(&mut self, m: GossipMessage<T>) {
         if let Some((round, node)) = self.missing.get_by_id(&m.message_id) {
             let threshold = 3; // TODO
             if round < m.round && (m.round - round) >= threshold {
@@ -187,24 +179,17 @@ where
         }
     }
 
-    fn is_known_node(&self, node_id: &N) -> bool {
+    fn is_known_node(&self, node_id: &T::NodeId) -> bool {
         self.eager_push_peers.contains(node_id) || self.lazy_push_peers.contains(node_id)
     }
 }
 
-#[derive(Debug)]
-struct MissingMessages<N, M>
-where
-    M: Hash + Eq,
-{
-    ihaves: BinaryHeap<MissingMessage<N, M>>,
-    missings: HashMap<M, (u64, u16, N, usize)>,
+// #[derive(Debug)]
+struct MissingMessages<T: System> {
+    ihaves: BinaryHeap<MissingMessage<T>>,
+    missings: HashMap<T::MessageId, (u64, u16, T::NodeId, usize)>,
 }
-impl<N, M> MissingMessages<N, M>
-where
-    N: Clone,
-    M: Hash + Eq + Clone,
-{
+impl<T: System> MissingMessages<T> {
     fn new() -> Self {
         MissingMessages {
             ihaves: BinaryHeap::new(),
@@ -212,7 +197,7 @@ where
         }
     }
 
-    fn push(&mut self, m: IhaveMessage<N, M>, mut expired_at: u64) {
+    fn push(&mut self, m: IhaveMessage<T>, mut expired_at: u64) {
         if !self.missings.contains_key(&m.message_id) {
             self.missings.insert(
                 m.message_id.clone(),
@@ -236,7 +221,7 @@ where
         });
     }
 
-    fn pop_expired(&mut self, now: u64) -> Option<IhaveMessage<N, M>> {
+    fn pop_expired(&mut self, now: u64) -> Option<IhaveMessage<T>> {
         while self.ihaves.peek().map_or(false, |m| m.expired_at <= now) {
             let m = self.ihaves.pop().expect("Never fails");
             let delete = if let Some(e) = self.missings.get_mut(&m.message.message_id) {
@@ -254,32 +239,32 @@ where
         None
     }
 
-    fn cancel_timer(&mut self, message_id: &M) {
+    fn cancel_timer(&mut self, message_id: &T::MessageId) {
         self.missings.remove(message_id);
     }
 
-    fn get_by_id(&self, message_id: &M) -> Option<(u16, &N)> {
+    fn get_by_id(&self, message_id: &T::MessageId) -> Option<(u16, &T::NodeId)> {
         self.missings.get(message_id).map(|e| (e.1, &e.2))
     }
 }
 
-#[derive(Debug)]
-struct MissingMessage<N, M> {
+// #[derive(Debug)]
+struct MissingMessage<T: System> {
     expired_at: u64,
-    message: IhaveMessage<N, M>,
+    message: IhaveMessage<T>,
 }
-impl<N, M> PartialEq for MissingMessage<N, M> {
+impl<T: System> PartialEq for MissingMessage<T> {
     fn eq(&self, other: &Self) -> bool {
         self.expired_at == other.expired_at
     }
 }
-impl<N, M> Eq for MissingMessage<N, M> {}
-impl<N, M> PartialOrd for MissingMessage<N, M> {
+impl<T: System> Eq for MissingMessage<T> {}
+impl<T: System> PartialOrd for MissingMessage<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         other.expired_at.partial_cmp(&self.expired_at)
     }
 }
-impl<N, M> Ord for MissingMessage<N, M> {
+impl<T: System> Ord for MissingMessage<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         other.expired_at.cmp(&self.expired_at)
     }
