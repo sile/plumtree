@@ -143,7 +143,7 @@ impl<T: System> Node<T> {
     }
 
     /// Handles the given incoming message.
-    pub fn handle_ipc_message(&mut self, message: ProtocolMessage<T>) {
+    pub fn handle_protocol_message(&mut self, message: ProtocolMessage<T>) {
         if !self.is_known_node(message.sender()) {
             return;
         }
