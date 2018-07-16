@@ -261,10 +261,7 @@ impl<T: System> Node<T> {
     fn lazy_push(&mut self, gossip: &GossipMessage<T>) {
         let round = gossip.round.saturating_add(1);
         let ihave = IhaveMessage::new(&self.id, gossip.message.id.clone(), round, true);
-        for peer in self.eager_push_peers
-            .iter()
-            .filter(|n| **n != gossip.sender)
-        {
+        for peer in self.lazy_push_peers.iter().filter(|n| **n != gossip.sender) {
             self.actions.send(peer.clone(), ihave.clone());
         }
     }

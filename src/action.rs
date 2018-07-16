@@ -75,7 +75,7 @@ impl<T: System> ActionQueue<T> {
     }
 
     pub fn pop(&mut self) -> Option<Action<T>> {
-        self.0.pop_back()
+        self.0.pop_front()
     }
 }
 impl<T: System> fmt::Debug for ActionQueue<T>
