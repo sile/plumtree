@@ -2,10 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use action::{Action, ActionQueue};
-use ipc::{GossipMessage, GraftMessage, IhaveMessage, IpcMessage, PruneMessage};
+use message::{GossipMessage, GraftMessage, IhaveMessage, Message, ProtocolMessage, PruneMessage};
 use missing::MissingMessages;
 use time::LogicalTime;
-use Message;
 use System;
 
 /// Options for Plumtree [Node].
@@ -144,16 +143,15 @@ impl<T: System> Node<T> {
     }
 
     /// Handles the given incoming message.
-    pub fn handle_ipc_message(&mut self, message: IpcMessage<T>) {
+    pub fn handle_ipc_message(&mut self, message: ProtocolMessage<T>) {
         if !self.is_known_node(message.sender()) {
-            // TODO: set disconnect action
             return;
         }
         match message {
-            IpcMessage::Gossip(m) => self.handle_gossip(m),
-            IpcMessage::Ihave(m) => self.handle_ihave(m),
-            IpcMessage::Graft(m) => self.handle_graft(m),
-            IpcMessage::Prune(m) => self.handle_prune(m),
+            ProtocolMessage::Gossip(m) => self.handle_gossip(m),
+            ProtocolMessage::Ihave(m) => self.handle_ihave(m),
+            ProtocolMessage::Graft(m) => self.handle_graft(m),
+            ProtocolMessage::Prune(m) => self.handle_prune(m),
         }
     }
 

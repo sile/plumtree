@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::fmt;
 
-use ipc::IpcMessage;
-use {Message, System};
+use message::{Message, ProtocolMessage};
+use System;
 
 /// Actions instructed by Plumtree [Node].
 ///
@@ -19,7 +19,7 @@ pub enum Action<T: System> {
         destination: T::NodeId,
 
         /// The outgoing message.
-        message: IpcMessage<T>,
+        message: ProtocolMessage<T>,
     },
 
     /// Deliver a message to the applications waiting for messages.
@@ -31,7 +31,7 @@ pub enum Action<T: System> {
 impl<T: System> Action<T> {
     pub(crate) fn send<M>(destination: T::NodeId, message: M) -> Self
     where
-        M: Into<IpcMessage<T>>,
+        M: Into<ProtocolMessage<T>>,
     {
         Action::Send {
             destination,
@@ -66,7 +66,7 @@ impl<T: System> ActionQueue<T> {
         ActionQueue(VecDeque::new())
     }
 
-    pub fn send<M: Into<IpcMessage<T>>>(&mut self, destination: T::NodeId, message: M) {
+    pub fn send<M: Into<ProtocolMessage<T>>>(&mut self, destination: T::NodeId, message: M) {
         self.0.push_back(Action::send(destination, message));
     }
 

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
 
-use ipc::IhaveMessage;
+use message::IhaveMessage;
 use time::LogicalTime;
 use System;
 
