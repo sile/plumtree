@@ -146,6 +146,7 @@ impl<T: System> Node<T> {
     /// Handles the given incoming message.
     pub fn handle_ipc_message(&mut self, message: IpcMessage<T>) {
         if !self.is_known_node(message.sender()) {
+            // TODO: set disconnect action
             return;
         }
         match message {
