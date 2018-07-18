@@ -132,9 +132,11 @@ impl<T: System> Node<T> {
 
     /// Forgets the specified message.
     ///
+    /// If the node does not have the target message, this method will return `false`.
+    ///
     /// For preventing memory shortage, this method needs to be called appropriately.
-    pub fn forget_message(&mut self, message_id: &T::MessageId) {
-        self.messages.remove(message_id);
+    pub fn forget_message(&mut self, message_id: &T::MessageId) -> bool {
+        self.messages.remove(message_id).is_some()
     }
 
     /// Polls the next action that the node wants to execute.
