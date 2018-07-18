@@ -104,6 +104,11 @@ impl<T: System> Node<T> {
         &self.options
     }
 
+    /// Returns a mutable reference to the options of the node.
+    pub fn options_mut(&mut self) -> &mut NodeOptions {
+        &mut self.options
+    }
+
     /// Returns the peers with which the node uses eager push gossip for diffusing application messages.
     pub fn eager_push_peers(&self) -> &HashSet<T::NodeId> {
         &self.eager_push_peers
