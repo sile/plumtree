@@ -1,6 +1,6 @@
 [package]
 name = "plumtree"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 description = "A Rust implementation of Plumtree algorithm"
 homepage = "https://github.com/sile/plumtree"
