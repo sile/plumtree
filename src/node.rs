@@ -150,9 +150,11 @@ impl<T: System> Node<T> {
     }
 
     /// Handles the given incoming message.
-    pub fn handle_protocol_message(&mut self, message: ProtocolMessage<T>) {
+    ///
+    /// This method will return `false` if the sender of the message is not a neighbor of this node.
+    pub fn handle_protocol_message(&mut self, message: ProtocolMessage<T>) -> bool {
         if !self.is_known_node(message.sender()) {
-            return;
+            return false;
         }
         match message {
             ProtocolMessage::Gossip(m) => self.handle_gossip(m),
@@ -160,6 +162,7 @@ impl<T: System> Node<T> {
             ProtocolMessage::Graft(m) => self.handle_graft(m),
             ProtocolMessage::Prune(m) => self.handle_prune(m),
         }
+        true
     }
 
     /// Accepts new neighbor.
