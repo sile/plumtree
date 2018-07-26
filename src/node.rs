@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::time::Duration;
 
 use action::{Action, ActionQueue};
 use message::{GossipMessage, GraftMessage, IhaveMessage, Message, ProtocolMessage, PruneMessage};
 use missing::MissingMessages;
-use time::LogicalTime;
+use time::{Clock, NodeTime};
 use System;
 
 /// Options for Plumtree [Node].
@@ -12,6 +13,7 @@ use System;
 /// [Node]: ./struct.Node.html
 #[derive(Debug, Clone)]
 pub struct NodeOptions {
+    // TODO: update doc
     /// Timeout duration (ticks) of a `IhaveMessage`.
     ///
     /// When the node receives a `IhaveMessage`, it sets a timer with the value of `ihave_timeout`.
@@ -21,7 +23,7 @@ pub struct NodeOptions {
     /// for retrieving the payload of the message.
     ///
     /// The default value is `5`.
-    pub ihave_timeout: u64,
+    pub ihave_timeout: Duration,
 
     /// Optimization threshold.
     ///
@@ -35,7 +37,7 @@ pub struct NodeOptions {
 impl Default for NodeOptions {
     fn default() -> Self {
         NodeOptions {
-            ihave_timeout: 5,
+            ihave_timeout: Duration::from_millis(500),
             optimization_threshold: 2,
         }
     }
@@ -50,7 +52,7 @@ pub struct Node<T: System> {
     messages: HashMap<T::MessageId, T::MessagePayload>,
     missings: MissingMessages<T>,
     actions: ActionQueue<T>,
-    clock: LogicalTime,
+    clock: Clock,
 }
 impl<T: System> fmt::Debug for Node<T>
 where
@@ -90,7 +92,7 @@ impl<T: System> Node<T> {
             messages: HashMap::new(),
             missings: MissingMessages::new(),
             actions: ActionQueue::new(),
-            clock: LogicalTime(0),
+            clock: Clock::new(),
         }
     }
 
@@ -146,6 +148,7 @@ impl<T: System> Node<T> {
 
     /// Polls the next action that the node wants to execute.
     pub fn poll_action(&mut self) -> Option<Action<T>> {
+        self.handle_expiration();
         self.actions.pop()
     }
 
@@ -186,14 +189,24 @@ impl<T: System> Node<T> {
         self.lazy_push_peers.remove(neighbor_node_id);
     }
 
-    /// Advances the logical time of the node by one unit.
-    pub fn tick(&mut self) {
-        self.clock.0 += 1;
-        self.handle_expiration();
+    /// Returns a reference to the clock of the node.
+    pub fn clock_ref(&self) -> &Clock {
+        &self.clock
+    }
+
+    /// Returns a mutable reference to the clock of the node.
+    ///
+    /// Note that TODO(about tick)
+    pub fn clock_mut(&mut self) -> &mut Clock {
+        &mut self.clock
+    }
+
+    pub fn next_event_time(&self) -> Option<NodeTime> {
+        self.missings.next_time()
     }
 
     fn handle_expiration(&mut self) {
-        while let Some(ihave) = self.missings.dequeue_expired(self.clock) {
+        while let Some(ihave) = self.missings.dequeue_expired(&self.clock) {
             if !self.is_known_node(&ihave.sender) {
                 // The node has been removed from neighbors
                 continue;
@@ -216,13 +229,14 @@ impl<T: System> Node<T> {
                 .send(gossip.sender, PruneMessage::new(&self.id));
         } else {
             self.actions.deliver(gossip.message.clone());
-            self.missings.remove(&gossip.message.id);
 
             self.eager_push(&gossip);
             self.lazy_push(&gossip);
             self.eager_push_peers.insert(gossip.sender.clone());
             self.lazy_push_peers.remove(&gossip.sender);
+
             self.optimize(&gossip);
+            self.missings.remove(&gossip.message.id);
             self.messages
                 .insert(gossip.message.id, gossip.message.payload);
         }
@@ -232,12 +246,8 @@ impl<T: System> Node<T> {
         if self.messages.contains_key(&ihave.message_id) {
             return;
         }
-
-        let mut expiry_time = self.clock;
-        if !ihave.realtime {
-            expiry_time.0 += self.options.ihave_timeout;
-        };
-        self.missings.enqueue(ihave, expiry_time);
+        self.missings
+            .enqueue(ihave, &self.clock, self.options.ihave_timeout);
     }
 
     fn handle_graft(&mut self, mut graft: GraftMessage<T>) {
