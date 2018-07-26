@@ -5,7 +5,7 @@
 //! - [Plumtree: Epidemic Broadcast Trees][Plumtree]
 //!
 //! [Plumtree]: http://www.gsd.inesc-id.pt/~ler/reports/srds07.pdf
-// TODO #![warn(missing_docs)]
+#![warn(missing_docs)]
 pub use action::Action;
 pub use node::{Node, NodeOptions};
 pub use system::System;

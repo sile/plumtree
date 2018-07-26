@@ -13,16 +13,16 @@ use System;
 /// [Node]: ./struct.Node.html
 #[derive(Debug, Clone)]
 pub struct NodeOptions {
-    // TODO: update doc
-    /// Timeout duration (ticks) of a `IhaveMessage`.
+    /// Timeout duration of a `IhaveMessage`.
     ///
-    /// When the node receives a `IhaveMessage`, it sets a timer with the value of `ihave_timeout`.
-    /// The timer decreases each times when `Node::tick` is called.
-    /// If the timer expires before the associated `GossipMessage` is received,
+    /// When a node receives a `IhaveMessage`,
+    /// the expiry time of the message is set after `ihave_timeout` duration.
+    ///
+    /// If it expires before the associated `GossipMessage` is received,
     /// the node will send `GraftMessage` to the sender of the `IhaveMessage`
     /// for retrieving the payload of the message.
     ///
-    /// The default value is `5`.
+    /// The default value is `Duration::from_millis(500)`.
     pub ihave_timeout: Duration,
 
     /// Optimization threshold.
@@ -44,6 +44,26 @@ impl Default for NodeOptions {
 }
 
 /// Plumtree node.
+///
+/// # User's responsibility
+///
+/// For running a node correctly, you have to call the following methods appropriately:
+///
+/// - [`poll_action`]
+/// - [`forget_message`]
+/// - [`handle_protocol_message`]
+/// - [`handle_neighbor_up`]
+/// - [`handle_neighbor_down`]
+/// - [`clock_mut`]
+///
+/// For details, refer to the document of each method.
+///
+/// [`poll_action`]: ./struct.Node.html#method.poll_action
+/// [`forget_message`]: ./struct.Node.html#method.forget_message
+/// [`handle_protocol_message`]: ./struct.Node.html#method.handle_protocol_message
+/// [`handle_neighbor_up`]: ./struct.Node.html#method.handle_neighbor_up
+/// [`handle_neighbor_down`]: ./struct.Node.html#method.handle_neighbor_down
+/// [`clock_mut`]: ./struct.Node.html#method.clock_mut
 pub struct Node<T: System> {
     id: T::NodeId,
     options: NodeOptions,
@@ -137,6 +157,13 @@ impl<T: System> Node<T> {
         &self.messages
     }
 
+    /// Returns the number of messages waiting to be received.
+    ///
+    /// Roughly speaking, it indicates the approximate number of `IHAVE` messages held by the node.
+    pub fn waiting_messages(&self) -> usize {
+        self.missings.waiting_messages()
+    }
+
     /// Forgets the specified message.
     ///
     /// If the node does not have the target message, this method will return `false`.
@@ -196,20 +223,19 @@ impl<T: System> Node<T> {
 
     /// Returns a mutable reference to the clock of the node.
     ///
-    /// Note that TODO(about tick)
+    /// Note that for handling `IHAVE` messages correctly,
+    /// you have to proceed the time of the node by calling [`Clock::tick`] method.
+    ///
+    /// [`Clock::tick`]: ./time/struct.Clock.html#method.tick
     pub fn clock_mut(&mut self) -> &mut Clock {
         &mut self.clock
     }
 
-    pub fn next_event_time(&self) -> Option<NodeTime> {
-        self.missings.next_expiry_time()
-    }
-
-    /// Returns the number of messages waiting to be received.
+    /// Returns the nearest time when the timeout of a `IHAVE` message expires.
     ///
-    /// Roughly speaking, it indicates the approximate number of `IHAVE` messages held by the node.
-    pub fn waiting_messages(&self) -> usize {
-        self.missings.waiting_messages()
+    /// If the node has no `IHAVE` messages to be handled, this method will return `None`.
+    pub fn next_expiry_time(&self) -> Option<NodeTime> {
+        self.missings.next_expiry_time()
     }
 
     fn handle_expiration(&mut self) {
