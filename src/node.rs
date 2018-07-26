@@ -202,11 +202,18 @@ impl<T: System> Node<T> {
     }
 
     pub fn next_event_time(&self) -> Option<NodeTime> {
-        self.missings.next_time()
+        self.missings.next_expiry_time()
+    }
+
+    /// Returns the number of messages waiting to be received.
+    ///
+    /// Roughly speaking, it indicates the approximate number of `IHAVE` messages held by the node.
+    pub fn waiting_messages(&self) -> usize {
+        self.missings.waiting_messages()
     }
 
     fn handle_expiration(&mut self) {
-        while let Some(ihave) = self.missings.dequeue_expired(&self.clock) {
+        while let Some(ihave) = self.missings.pop_expired(&self.clock) {
             if !self.is_known_node(&ihave.sender) {
                 // The node has been removed from neighbors
                 continue;
@@ -247,7 +254,7 @@ impl<T: System> Node<T> {
             return;
         }
         self.missings
-            .enqueue(ihave, &self.clock, self.options.ihave_timeout);
+            .push(ihave, &self.clock, self.options.ihave_timeout);
     }
 
     fn handle_graft(&mut self, mut graft: GraftMessage<T>) {
@@ -287,15 +294,13 @@ impl<T: System> Node<T> {
     }
 
     fn optimize(&mut self, gossip: &GossipMessage<T>) {
-        if let Some((ihave_round, ihave_node)) =
-            self.missings.get_min_round_owner(&gossip.message.id)
-        {
+        if let Some((ihave_round, ihave_owner)) = self.missings.get_ihave(&gossip.message.id) {
             let optimize =
                 gossip.round.checked_sub(ihave_round) >= Some(self.options.optimization_threshold);
             if optimize {
                 let graft = GraftMessage::new(&self.id, None, ihave_round);
                 let prune = PruneMessage::new(&self.id);
-                self.actions.send(ihave_node.clone(), graft);
+                self.actions.send(ihave_owner.clone(), graft);
                 self.actions.send(gossip.sender.clone(), prune);
             }
         }

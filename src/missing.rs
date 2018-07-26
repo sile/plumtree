@@ -8,8 +8,9 @@ use time::{Clock, NodeTime};
 use System;
 
 pub struct MissingMessages<T: System> {
-    ihave_queue: BinaryHeap<QueueItem<T>>, // TODO: rename
-    missings: HashMap<T::MessageId, Entry<T::NodeId>>,
+    timeout_queue: BinaryHeap<QueueItem<T>>,
+    ihaves: HashMap<T::MessageId, IhaveEntry<T::NodeId>>,
+    entry_seqno: u64,
 }
 impl<T: System> fmt::Debug for MissingMessages<T>
 where
@@ -19,84 +20,89 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "MissingMessages {{ ihave_queue: {:?}, missings: {:?} }}",
-            self.ihave_queue, self.missings
+            "MissingMessages {{ timeout_queue: {:?}, ihaves: {:?}, entry_seqno: {:?} }}",
+            self.timeout_queue, self.ihaves, self.entry_seqno
         )
     }
 }
 impl<T: System> MissingMessages<T> {
     pub fn new() -> Self {
         MissingMessages {
-            ihave_queue: BinaryHeap::new(),
-            missings: HashMap::new(),
+            timeout_queue: BinaryHeap::new(),
+            ihaves: HashMap::new(),
+            entry_seqno: 0,
         }
     }
 
-    pub fn enqueue(&mut self, ihave: IhaveMessage<T>, clock: &Clock, timeout: Duration) {
-        let expiry_time = if !self.missings.contains_key(&ihave.message_id) {
-            let mut expiry_time = clock.now();
-            if !ihave.realtime {
-                expiry_time += timeout;
-            }
+    pub fn push(&mut self, ihave: IhaveMessage<T>, clock: &Clock, timeout: Duration) {
+        let seqno = self.entry_seqno;
+        let entry = self.ihaves
+            .entry(ihave.message_id.clone())
+            .or_insert_with(|| {
+                let mut expiry_time = clock.now();
+                if !ihave.realtime {
+                    expiry_time += timeout;
+                }
+                IhaveEntry {
+                    seqno,
+                    head_round: ihave.round,
+                    head_owner: ihave.sender.clone(),
+                    owners: 0,
+                    next_expiry_time: expiry_time,
+                }
+            });
 
-            let e = Entry {
-                min_round: ihave.round,
-                min_round_owner: ihave.sender.clone(),
-                owners: 1,
-                entry_expiry_time: clock.now() + timeout,
-            };
-            self.missings.insert(ihave.message_id.clone(), e);
+        let expiry_time = entry.next_expiry_time;
+        entry.next_expiry_time += timeout;
+        entry.owners += 1;
+        if entry.owners == 1 {
+            self.entry_seqno += 1;
+        }
 
-            expiry_time
-        } else {
-            let entry = self.missings
-                .get_mut(&ihave.message_id)
-                .expect("never fails");
-
-            let expiry_time = entry.entry_expiry_time;
-            entry.entry_expiry_time += timeout;
-            if entry.min_round > ihave.round {
-                // TODO:
-                entry.min_round = ihave.round;
-                entry.min_round_owner = ihave.sender.clone();
-            }
-            entry.owners += 1;
-
-            expiry_time
-        };
-        self.ihave_queue
-            .push(QueueItem::Ihave { expiry_time, ihave });
+        self.timeout_queue.push(QueueItem::Message {
+            expiry_time,
+            ihave,
+            entry_seqno: entry.seqno,
+        });
     }
 
-    pub fn dequeue_expired(&mut self, clock: &Clock) -> Option<IhaveMessage<T>> {
+    pub fn pop_expired(&mut self, clock: &Clock) -> Option<IhaveMessage<T>> {
         let is_expired = |x: &QueueItem<_>| x.expiry_time() <= clock.now();
-        while self.ihave_queue.peek().map_or(false, is_expired) {
-            let item = self.ihave_queue.pop().expect("never fails");
-            if !self.missings.contains_key(item.message_id()) {
-                continue;
+        while self.timeout_queue.peek().map_or(false, is_expired) {
+            let item = self.timeout_queue.pop().expect("never fails");
+            match self.ihaves.get(item.message_id()) {
+                None => {
+                    // (a) The entry has been removed due to reception of the associated GOSSIP message
+                    continue;
+                }
+                Some(entry) if entry.seqno != item.entry_seqno() => {
+                    // (b) Like `(a)`, but the message has been forgot before receiving new IHAVE messages
+                    continue;
+                }
+                _ => {}
             }
 
             match item {
-                QueueItem::Ihave { ihave, .. } => {
-                    let entry = self.missings
-                        .get_mut(&ihave.message_id)
-                        .expect("never fails");
+                QueueItem::Message { ihave, .. } => {
+                    let entry = self.ihaves.get_mut(&ihave.message_id).expect("never fails");
                     assert_ne!(entry.owners, 0);
+
                     entry.owners -= 1;
+                    entry.head_round = ihave.round;
+                    entry.head_owner = ihave.sender.clone();
                     if entry.owners == 0 {
-                        let expiry_time = entry.entry_expiry_time;
-                        let message_id = ihave.message_id.clone();
-                        self.ihave_queue.push(QueueItem::Entry {
-                            expiry_time,
-                            message_id,
+                        self.timeout_queue.push(QueueItem::Entry {
+                            expiry_time: entry.next_expiry_time,
+                            entry_seqno: entry.seqno,
+                            message_id: ihave.message_id.clone(),
                         });
                     }
                     return Some(ihave);
                 }
                 QueueItem::Entry { message_id, .. } => {
-                    let expired = self.missings.get(&message_id).map(|e| e.owners) == Some(0);
+                    let expired = self.ihaves.get(&message_id).map(|e| e.owners) == Some(0);
                     if expired {
-                        self.missings.remove(&message_id);
+                        self.ihaves.remove(&message_id);
                     }
                 }
             }
@@ -104,51 +110,66 @@ impl<T: System> MissingMessages<T> {
         None
     }
 
-    pub fn next_time(&self) -> Option<NodeTime> {
-        self.ihave_queue.peek().map(|x| x.expiry_time())
-    }
-
     pub fn remove(&mut self, message_id: &T::MessageId) {
-        self.missings.remove(message_id);
+        self.ihaves.remove(message_id);
     }
 
-    pub fn get_min_round_owner(&self, message_id: &T::MessageId) -> Option<(u16, &T::NodeId)> {
-        self.missings
+    pub fn waiting_messages(&self) -> usize {
+        self.ihaves.len()
+    }
+
+    pub fn next_expiry_time(&self) -> Option<NodeTime> {
+        self.timeout_queue.peek().map(|x| x.expiry_time())
+    }
+
+    pub fn get_ihave(&self, message_id: &T::MessageId) -> Option<(u16, &T::NodeId)> {
+        self.ihaves
             .get(message_id)
-            .map(|e| (e.min_round, &e.min_round_owner))
+            .map(|e| (e.head_round, &e.head_owner))
     }
 }
 
 #[derive(Debug)]
-struct Entry<N> {
-    min_round: u16, // TODO: s/min/next/
-    min_round_owner: N,
+struct IhaveEntry<N> {
+    seqno: u64,
+    head_round: u16,
+    head_owner: N,
     owners: usize,
-    entry_expiry_time: NodeTime,
+    next_expiry_time: NodeTime,
 }
 
 enum QueueItem<T: System> {
-    Ihave {
+    Message {
         expiry_time: NodeTime,
+        entry_seqno: u64,
         ihave: IhaveMessage<T>,
     },
     Entry {
         expiry_time: NodeTime,
+        entry_seqno: u64,
         message_id: T::MessageId,
     },
 }
 impl<T: System> QueueItem<T> {
     fn expiry_time(&self) -> NodeTime {
         match self {
-            QueueItem::Ihave { expiry_time, .. } | QueueItem::Entry { expiry_time, .. } => {
+            QueueItem::Message { expiry_time, .. } | QueueItem::Entry { expiry_time, .. } => {
                 *expiry_time
+            }
+        }
+    }
+
+    fn entry_seqno(&self) -> u64 {
+        match self {
+            QueueItem::Message { entry_seqno, .. } | QueueItem::Entry { entry_seqno, .. } => {
+                *entry_seqno
             }
         }
     }
 
     fn message_id(&self) -> &T::MessageId {
         match self {
-            QueueItem::Ihave { ihave, .. } => &ihave.message_id,
+            QueueItem::Message { ihave, .. } => &ihave.message_id,
             QueueItem::Entry { message_id, .. } => message_id,
         }
     }
@@ -177,8 +198,9 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "QueueItem {{ expiry_time: {:?}, .. }}",
-            self.expiry_time()
+            "QueueItem {{ expiry_time: {:?}, message_id: {:?}, .. }}",
+            self.expiry_time(),
+            self.message_id()
         )
     }
 }
