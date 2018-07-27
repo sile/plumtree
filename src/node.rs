@@ -214,6 +214,14 @@ impl<T: System> Node<T> {
         }
         self.eager_push_peers.remove(neighbor_node_id);
         self.lazy_push_peers.remove(neighbor_node_id);
+
+        if self.eager_push_peers.is_empty() {
+            while let Some(ihave) = self.missings.pop_expired(&Clock::max()) {
+                if self.send_graft(ihave) {
+                    break;
+                }
+            }
+        }
     }
 
     /// Returns a reference to the clock of the node.
@@ -240,16 +248,22 @@ impl<T: System> Node<T> {
 
     fn handle_expiration(&mut self) {
         while let Some(ihave) = self.missings.pop_expired(&self.clock) {
-            if !self.is_known_node(&ihave.sender) {
-                // The node has been removed from neighbors
-                continue;
-            }
+            self.send_graft(ihave);
+        }
+    }
+
+    fn send_graft(&mut self, ihave: IhaveMessage<T>) -> bool {
+        if !self.is_known_node(&ihave.sender) {
+            // The node has been removed from neighbors
+            false
+        } else {
             self.eager_push_peers.insert(ihave.sender.clone());
             self.lazy_push_peers.remove(&ihave.sender);
             self.actions.send(
                 ihave.sender,
                 GraftMessage::new(&self.id, Some(ihave.message_id), ihave.round),
             );
+            true
         }
     }
 
@@ -275,9 +289,12 @@ impl<T: System> Node<T> {
         }
     }
 
-    fn handle_ihave(&mut self, ihave: IhaveMessage<T>) {
+    fn handle_ihave(&mut self, mut ihave: IhaveMessage<T>) {
         if self.messages.contains_key(&ihave.message_id) {
             return;
+        }
+        if self.eager_push_peers.is_empty() {
+            ihave.realtime = true;
         }
         self.missings
             .push(ihave, &self.clock, self.options.ihave_timeout);

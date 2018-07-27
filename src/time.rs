@@ -1,4 +1,5 @@
 //! Node local clock and time.
+use std;
 use std::ops::{Add, AddAssign};
 use std::time::Duration;
 
@@ -48,6 +49,11 @@ impl Clock {
     /// Proceeds the time of the clock by the given duration.
     pub fn tick(&mut self, duration: Duration) {
         self.0 += duration;
+    }
+
+    pub(crate) fn max() -> Self {
+        let max = Duration::new(std::u64::MAX, 0);
+        Clock(max)
     }
 }
 
