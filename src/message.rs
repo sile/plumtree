@@ -40,6 +40,21 @@ where
         )
     }
 }
+impl<T: System> PartialEq for Message<T>
+where
+    T::MessageId: PartialEq,
+    T::MessagePayload: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id) && self.payload.eq(&other.payload)
+    }
+}
+impl<T: System> Eq for Message<T>
+where
+    T::MessageId: Eq,
+    T::MessagePayload: Eq,
+{
+}
 
 /// Messages defined by the Plumtree algorithm.
 ///

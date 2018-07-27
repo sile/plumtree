@@ -217,7 +217,7 @@ impl<T: System> Node<T> {
     }
 
     /// Returns a reference to the clock of the node.
-    pub fn clock_ref(&self) -> &Clock {
+    pub fn clock(&self) -> &Clock {
         &self.clock
     }
 

@@ -11,3 +11,6 @@ license = "MIT"
 [badges]
 travis-ci = {repository = "sile/plumtree"}
 codecov = {repository = "sile/plumtree"}
+
+[dev-dependencies]
+rand = "0.5"
