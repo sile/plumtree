@@ -1,12 +1,13 @@
+use crate::action::{Action, ActionQueue};
+use crate::message::{
+    GossipMessage, GraftMessage, IhaveMessage, Message, ProtocolMessage, PruneMessage,
+};
+use crate::missing::MissingMessages;
+use crate::time::{Clock, NodeTime};
+use crate::System;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::Duration;
-
-use action::{Action, ActionQueue};
-use message::{GossipMessage, GraftMessage, IhaveMessage, Message, ProtocolMessage, PruneMessage};
-use missing::MissingMessages;
-use time::{Clock, NodeTime};
-use System;
 
 /// Options for Plumtree [Node].
 ///

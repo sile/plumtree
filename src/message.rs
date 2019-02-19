@@ -1,7 +1,6 @@
 //! Application and protocol messages.
+use crate::System;
 use std::fmt;
-
-use System;
 
 /// Application message.
 pub struct Message<T: System> {

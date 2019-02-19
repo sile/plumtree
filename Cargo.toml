@@ -8,6 +8,7 @@ repository = "https://github.com/sile/plumtree"
 readme = "README.md"
 license = "MIT"
 categories = ["algorithms"]
+edition = "2018"
 
 [badges]
 travis-ci = {repository = "sile/plumtree"}

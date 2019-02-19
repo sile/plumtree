@@ -1,11 +1,10 @@
+use crate::message::IhaveMessage;
+use crate::time::{Clock, NodeTime};
+use crate::System;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
 use std::time::Duration;
-
-use message::IhaveMessage;
-use time::{Clock, NodeTime};
-use System;
 
 pub struct MissingMessages<T: System> {
     timeout_queue: BinaryHeap<QueueItem<T>>,

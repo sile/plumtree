@@ -1,8 +1,7 @@
+use crate::message::{Message, ProtocolMessage};
+use crate::System;
 use std::collections::VecDeque;
 use std::fmt;
-
-use message::{Message, ProtocolMessage};
-use System;
 
 /// Actions instructed by Plumtree [Node].
 ///
