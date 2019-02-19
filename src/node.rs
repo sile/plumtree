@@ -319,7 +319,8 @@ impl<T: System> Node<T> {
 
     fn eager_push(&mut self, gossip: &GossipMessage<T>) {
         let round = gossip.round.saturating_add(1);
-        for peer in self.eager_push_peers
+        for peer in self
+            .eager_push_peers
             .iter()
             .filter(|n| **n != gossip.sender)
         {

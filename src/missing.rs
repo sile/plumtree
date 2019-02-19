@@ -36,7 +36,8 @@ impl<T: System> MissingMessages<T> {
 
     pub fn push(&mut self, ihave: IhaveMessage<T>, clock: &Clock, timeout: Duration) {
         let seqno = self.entry_seqno;
-        let entry = self.ihaves
+        let entry = self
+            .ihaves
             .entry(ihave.message_id.clone())
             .or_insert_with(|| {
                 let mut expiry_time = clock.now();
