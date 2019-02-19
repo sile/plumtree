@@ -268,7 +268,7 @@ impl<T: System> Node<T> {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(map_entry))]
+    #[allow(clippy::map_entry)]
     fn handle_gossip(&mut self, gossip: GossipMessage<T>) {
         if self.messages.contains_key(&gossip.message.id) {
             self.eager_push_peers.remove(&gossip.sender);
