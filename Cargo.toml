@@ -10,9 +10,5 @@ license = "MIT"
 categories = ["algorithms"]
 edition = "2021"
 
-[badges]
-travis-ci = {repository = "sile/plumtree"}
-codecov = {repository = "sile/plumtree"}
-
 [dev-dependencies]
 rand = "0.8"
