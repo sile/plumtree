@@ -6,9 +6,6 @@
 //!
 //! [Plumtree]: http://www.gsd.inesc-id.pt/~ler/reports/srds07.pdf
 #![warn(missing_docs)]
-#[cfg(test)]
-extern crate rand;
-
 pub use action::Action;
 pub use node::{Node, NodeOptions};
 pub use system::System;
