@@ -182,7 +182,7 @@ impl<T: System> PartialEq for QueueItem<T> {
 impl<T: System> Eq for QueueItem<T> {}
 impl<T: System> PartialOrd for QueueItem<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.expiry_time().partial_cmp(&self.expiry_time())
+        Some(self.cmp(other))
     }
 }
 impl<T: System> Ord for QueueItem<T> {

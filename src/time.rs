@@ -52,7 +52,7 @@ impl Clock {
     }
 
     pub(crate) fn max() -> Self {
-        let max = Duration::new(std::u64::MAX, 0);
+        let max = Duration::MAX;
         Clock(max)
     }
 }
