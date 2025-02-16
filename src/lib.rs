@@ -94,9 +94,9 @@ mod tests {
 
         // setup neighbors
         for i in 0..nodes.len() {
-            let neighbors = rand::random::<usize>() % 3 + 1;
+            let neighbors = rand::random::<u32>() % 3 + 1;
             for _ in 0..neighbors {
-                let j = rand::random::<usize>() % nodes.len();
+                let j = rand::random::<u32>() as usize % nodes.len();
                 nodes[i].handle_neighbor_up(&j.to_string());
                 nodes[j].handle_neighbor_up(&i.to_string());
             }
@@ -105,7 +105,7 @@ mod tests {
         // broadcast messages
         const MESSAGE_COUNT: usize = 50;
         for m in 0..MESSAGE_COUNT {
-            let sender = rand::random::<usize>() % nodes.len();
+            let sender = rand::random::<u32>() as usize % nodes.len();
             nodes[sender].broadcast_message(message(m as u64));
         }
 
