@@ -68,7 +68,7 @@ impl<T: System> MissingMessages<T> {
 
     pub fn pop_expired(&mut self, clock: &Clock) -> Option<IhaveMessage<T>> {
         let is_expired = |x: &QueueItem<_>| x.expiry_time() <= clock.now();
-        while self.timeout_queue.peek().map_or(false, is_expired) {
+        while self.timeout_queue.peek().is_some_and(is_expired) {
             let item = self.timeout_queue.pop().expect("never fails");
             match self.ihaves.get(item.message_id()) {
                 None => {
