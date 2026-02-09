@@ -8,7 +8,7 @@ repository = "https://github.com/sile/plumtree"
 readme = "README.md"
 license = "MIT"
 categories = ["algorithms"]
-edition = "2021"
+edition = "2024"
 
 [dev-dependencies]
 rand = "0.9"
