@@ -1,6 +1,6 @@
+use crate::System;
 use crate::message::IhaveMessage;
 use crate::time::{Clock, NodeTime};
-use crate::System;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::fmt;

@@ -1,5 +1,5 @@
-use crate::message::{Message, ProtocolMessage};
 use crate::System;
+use crate::message::{Message, ProtocolMessage};
 use std::collections::VecDeque;
 use std::fmt;
 
