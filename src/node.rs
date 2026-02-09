@@ -1,10 +1,10 @@
+use crate::System;
 use crate::action::{Action, ActionQueue};
 use crate::message::{
     GossipMessage, GraftMessage, IhaveMessage, Message, ProtocolMessage, PruneMessage,
 };
 use crate::missing::MissingMessages;
 use crate::time::{Clock, NodeTime};
-use crate::System;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::time::Duration;
@@ -305,11 +305,12 @@ impl<T: System> Node<T> {
         self.eager_push_peers.insert(graft.sender.clone());
         self.lazy_push_peers.remove(&graft.sender);
         if let Some(message_id) = graft.message_id.take()
-            && let Some(payload) = self.messages.get(&message_id).cloned() {
-                let gossip =
-                    GossipMessage::new(&self.id, Message::new(message_id, payload), graft.round);
-                self.actions.send(graft.sender, gossip);
-            }
+            && let Some(payload) = self.messages.get(&message_id).cloned()
+        {
+            let gossip =
+                GossipMessage::new(&self.id, Message::new(message_id, payload), graft.round);
+            self.actions.send(graft.sender, gossip);
+        }
     }
 
     fn handle_prune(&mut self, prune: PruneMessage<T>) {
